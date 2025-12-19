@@ -1,14 +1,20 @@
-import React, { useState } from 'react';
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import DealSetup from './components/DealSetup';
-import Pricing from './components/Pricing';
-import Contact from './components/Contact';
-import Testimonials from './components/Testimonials';
-import WhyChooseUs from './components/WhyChooseUs';
+import React, { useEffect, useState } from 'react';
+import type { Page } from './types';
+
+import Navbar from './Navbar';
+import Hero from './Hero';
+import DealSetup from './DealSetup';
+import Pricing from './Pricing';
+import Contact from './Contact';
+import Testimonials from './Testimonials';
+import WhyChooseUs from './WhyChooseUs';
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState('home');
+  const [currentPage, setCurrentPage] = useState<Page>('home');
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentPage]);
 
   const renderContent = () => {
     switch (currentPage) {
@@ -27,31 +33,54 @@ const App: React.FC = () => {
       case 'contact':
         return <Contact />;
       default:
-        return <Hero onStart={() => setCurrentPage('setup')} />;
+        return (
+          <>
+            <Hero onStart={() => setCurrentPage('setup')} />
+            <WhyChooseUs />
+            <Testimonials />
+          </>
+        );
     }
   };
 
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-900">
+    <div className="min-h-screen bg-white font-sans text-slate-900 flex flex-col">
       <Navbar onNavigate={setCurrentPage} currentPage={currentPage} />
-      <main>
-        {renderContent()}
-      </main>
-      
-      {/* Footer */}
+
+      <main className="flex-grow">{renderContent()}</main>
+
       <footer className="bg-slate-900 text-white py-12 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-6 md:mb-0">
-              <span className="text-2xl font-serif font-bold text-white">CRE Mailflow</span>
-              <p className="text-slate-400 text-sm mt-2">Automated direct mail for commercial investors.</p>
+              <button
+                onClick={() => setCurrentPage('home')}
+                className="text-2xl font-serif font-bold text-white hover:opacity-80 transition-opacity"
+              >
+                CRE Mailflow
+              </button>
+              <p className="text-slate-400 text-sm mt-2">
+                Automated direct mail for commercial investors.
+              </p>
             </div>
-            <div className="flex space-x-6 text-sm text-slate-400">
-              <button onClick={() => setCurrentPage('contact')} className="hover:text-white">Contact</button>
-              <button onClick={() => setCurrentPage('pricing')} className="hover:text-white">Pricing</button>
-            </div>
+
+            <nav className="flex space-x-6 text-sm text-slate-400" aria-label="Footer navigation">
+              <button
+                onClick={() => setCurrentPage('contact')}
+                className="hover:text-white transition-colors"
+              >
+                Contact
+              </button>
+              <button
+                onClick={() => setCurrentPage('pricing')}
+                className="hover:text-white transition-colors"
+              >
+                Pricing
+              </button>
+            </nav>
           </div>
-          <div className="mt-8 text-center text-xs text-slate-600">
+
+          <div className="mt-8 text-center text-xs text-slate-600 border-t border-slate-800 pt-8">
             &copy; {new Date().getFullYear()} CRE Mailflow. All rights reserved.
           </div>
         </div>
