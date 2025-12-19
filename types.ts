@@ -1,3 +1,5 @@
+export type Page = 'home' | 'setup' | 'pricing' | 'contact';
+
 export interface BuyingCriteria {
   propertyType: string;
   targetState: string;
@@ -24,8 +26,8 @@ export interface MailerSideContent {
 
 export interface MailerDesign {
   id: string;
-  name: string; // e.g. "The Professional", "The Cash Offer"
-  style: 'modern' | 'bold' | 'classic'; 
+  name: string;
+  style: 'modern' | 'bold' | 'classic';
   front: {
     headline: string;
     subHeadline: string;
@@ -35,17 +37,17 @@ export interface MailerDesign {
   back: {
     headline: string;
     benefits: string[];
-    socialProof: string; // "Trusted by..."
-    testimonial?: string; // "Best service..."
-    guarantee?: string; // "No obligation..."
-    secondaryCta?: string; // "Visit website..."
+    socialProof: string;
+    testimonial?: string;
+    guarantee?: string;
+    secondaryCta?: string;
   };
 }
 
 export enum MailerType {
   LETTER = 'LETTER',
   POSTCARD_STD = 'POSTCARD_STD',
-  POSTCARD_JUMBO = 'POSTCARD_JUMBO'
+  POSTCARD_JUMBO = 'POSTCARD_JUMBO',
 }
 
 export interface PricingPlan {
