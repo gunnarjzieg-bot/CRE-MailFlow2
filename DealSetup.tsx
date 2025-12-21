@@ -21,8 +21,8 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.79,
     dimensions: '#10 Envelope',
     description: 'Formal introduction letter',
-    // ⚠️ Placeholder: will be blocked by the new safety check
-    stripeLink: 'https://buy.stripe.com/placeholder-letter', 
+    // ⚠️ Placeholder: will be blocked by the safety check
+    stripeLink: 'https://buy.stripe.com/placeholder-letter',
   },
   {
     id: MailerType.POSTCARD_STD,
@@ -31,7 +31,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     dimensions: '6x9',
     description: 'Standard size, most popular',
     // ✅ TEST LINK
-    stripeLink: 'https://buy.stripe.com/bJe9AVcvbapleEegC4efC03', 
+    stripeLink: 'https://buy.stripe.com/bJe9AVcvbapleEegC4efC03',
   },
   {
     id: MailerType.POSTCARD_JUMBO,
@@ -39,13 +39,14 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 1.39,
     dimensions: '9x12',
     description: 'Jumbo size for maximum impact',
-    // ⚠️ Placeholder: will be blocked
+    // ⚠️ Placeholder: will be blocked by the safety check
     stripeLink: 'https://buy.stripe.com/placeholder-jumbo',
   },
 ];
 
 /* ------------------ Helpers ------------------ */
 
+// Helper to ensure BigInt columns get clean numbers (or null if empty)
 function toIntOrNull(value: string): number | null {
   const cleaned = (value || '').replace(/,/g, '').trim();
   if (!cleaned) return null;
@@ -71,7 +72,7 @@ const DealSetup: React.FC = () => {
     companyName: '',
     website: '',
     phoneNumber: '',
-    email: '', 
+    email: '',
     logo: '',
   });
 
@@ -135,16 +136,17 @@ const DealSetup: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  /* ------------------ 1) IMPROVED SUPABASE SAVE ------------------ */
+  /* ------------------ Supabase Save ------------------ */
+
   const saveCampaignDraft = async () => {
-    // Check if Supabase client is available
     if (!isSupabaseConfigured || !supabase) {
       console.warn('[campaigns] Supabase not configured — skipping save');
       return { data: null, error: null };
     }
 
-    const chosenDesign = generatedDesigns.find((d) => d.id === selectedDesignId) || null;
+    const chosenDesign = activeDesign || null;
 
+    // ✅ Strictly matches your campaigns schema
     const payload = {
       company_name: criteria.companyName || null,
       logo: criteria.logo || null,
@@ -160,19 +162,17 @@ const DealSetup: React.FC = () => {
       mailer_format: selectedPlanObj?.name || String(selectedPlan),
       quantity: quantity,
       selected_design_style: chosenDesign?.style || null,
-      selected_design: chosenDesign,
+      selected_design: chosenDesign, // jsonb
     };
 
-    // LOGGING: See exactly what we are trying to send
     console.log('[campaigns] INSERT payload:', payload);
 
     const { data, error } = await supabase
       .from('campaigns')
       .insert(payload)
-      .select('id, created_at') // Return the ID so we know it worked
+      .select('id, created_at')
       .single();
 
-    // LOGGING: See the result
     console.log('[campaigns] INSERT result:', { data, error });
 
     if (error) {
@@ -225,16 +225,20 @@ const DealSetup: React.FC = () => {
         return;
       }
 
-      // 2) STRIPE SAFETY CHECK
-      // If the link contains "placeholder", stop the user.
+      // Block placeholder links
       if (plan.stripeLink.includes('placeholder')) {
-        alert('Stripe link not set for this plan yet. Please contact support.');
+        alert('Stripe link not set for this plan yet.');
         setLaunching(false);
         return;
       }
 
-      // Save to Supabase (now with full logging)
-      await saveCampaignDraft();
+      // Save and STOP if it fails
+      const { error } = await saveCampaignDraft();
+      if (error) {
+        alert('Could not save campaign. Check console + Supabase RLS/policies.');
+        setLaunching(false);
+        return;
+      }
 
       // Redirect to Stripe
       window.location.href = plan.stripeLink;
@@ -302,6 +306,7 @@ const DealSetup: React.FC = () => {
                   onChange={(e) => setCriteria({ ...criteria, targetState: e.target.value.toUpperCase() })}
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Target City <span className="text-gray-400 font-normal">(Optional)</span>
@@ -472,8 +477,7 @@ const DealSetup: React.FC = () => {
     );
   }
 
-  // --- Render Step 2 ---
-
+  // STEP 2: Render
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex flex-col lg:flex-row gap-12">
