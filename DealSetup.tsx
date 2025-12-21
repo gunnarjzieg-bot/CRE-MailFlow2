@@ -21,7 +21,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.79,
     dimensions: '#10 Envelope',
     description: 'Formal introduction letter',
-    // ⚠️ Replace with your real Stripe link
+    // ⚠️ Placeholder: will be blocked by the new safety check
     stripeLink: 'https://buy.stripe.com/placeholder-letter', 
   },
   {
@@ -30,7 +30,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.99,
     dimensions: '6x9',
     description: 'Standard size, most popular',
-    // ✅ TEST LINK (Replace with live link for production)
+    // ✅ TEST LINK
     stripeLink: 'https://buy.stripe.com/bJe9AVcvbapleEegC4efC03', 
   },
   {
@@ -39,14 +39,13 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 1.39,
     dimensions: '9x12',
     description: 'Jumbo size for maximum impact',
-    // ⚠️ Replace with your real Stripe link
+    // ⚠️ Placeholder: will be blocked
     stripeLink: 'https://buy.stripe.com/placeholder-jumbo',
   },
 ];
 
 /* ------------------ Helpers ------------------ */
 
-// Helper to ensure BigInt columns get clean numbers (or null if empty)
 function toIntOrNull(value: string): number | null {
   const cleaned = (value || '').replace(/,/g, '').trim();
   if (!cleaned) return null;
@@ -72,7 +71,7 @@ const DealSetup: React.FC = () => {
     companyName: '',
     website: '',
     phoneNumber: '',
-    email: '', // We keep this in state for the UI, but won't save it to DB
+    email: '', 
     logo: '',
   });
 
@@ -136,15 +135,16 @@ const DealSetup: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  /* ------------------ Supabase Save ------------------ */
-
+  /* ------------------ 1) IMPROVED SUPABASE SAVE ------------------ */
   const saveCampaignDraft = async () => {
-    if (!isSupabaseConfigured || !supabase) return;
+    // Check if Supabase client is available
+    if (!isSupabaseConfigured || !supabase) {
+      console.warn('[campaigns] Supabase not configured — skipping save');
+      return { data: null, error: null };
+    }
 
     const chosenDesign = generatedDesigns.find((d) => d.id === selectedDesignId) || null;
 
-    // ✅ FIXED: Payload strictly matches your Supabase Schema
-    // Removed 'email' and 'total_price'
     const payload = {
       company_name: criteria.companyName || null,
       logo: criteria.logo || null,
@@ -157,20 +157,29 @@ const DealSetup: React.FC = () => {
       price_range: criteria.priceRange || null,
       website: criteria.website || null,
       phone: criteria.phoneNumber || null,
-      
-      // Use the readable name (e.g., "A. Letter Mailer") instead of just ID
       mailer_format: selectedPlanObj?.name || String(selectedPlan),
-      
       quantity: quantity,
       selected_design_style: chosenDesign?.style || null,
-      selected_design: chosenDesign, // JSONB column
+      selected_design: chosenDesign,
     };
 
-    const { error } = await supabase.from('campaigns').insert(payload);
+    // LOGGING: See exactly what we are trying to send
+    console.log('[campaigns] INSERT payload:', payload);
+
+    const { data, error } = await supabase
+      .from('campaigns')
+      .insert(payload)
+      .select('id, created_at') // Return the ID so we know it worked
+      .single();
+
+    // LOGGING: See the result
+    console.log('[campaigns] INSERT result:', { data, error });
 
     if (error) {
-      console.error('Supabase insert failed:', error.message);
+      console.error('[campaigns] Supabase insert failed:', error);
     }
+
+    return { data, error };
   };
 
   /* ------------------ Step 1: Generate ------------------ */
@@ -216,7 +225,15 @@ const DealSetup: React.FC = () => {
         return;
       }
 
-      // Save to Supabase (best-effort)
+      // 2) STRIPE SAFETY CHECK
+      // If the link contains "placeholder", stop the user.
+      if (plan.stripeLink.includes('placeholder')) {
+        alert('Stripe link not set for this plan yet. Please contact support.');
+        setLaunching(false);
+        return;
+      }
+
+      // Save to Supabase (now with full logging)
       await saveCampaignDraft();
 
       // Redirect to Stripe
@@ -356,7 +373,12 @@ const DealSetup: React.FC = () => {
                     ) : (
                       <div className="flex flex-col items-center justify-center py-4">
                         <svg className="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
                         </svg>
                         <p className="mb-1 text-sm text-gray-500 font-medium">Click to upload logo</p>
                         <p className="text-xs text-gray-400">JPG or PNG</p>
@@ -425,13 +447,24 @@ const DealSetup: React.FC = () => {
             >
               {loading ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
                   </svg>
                   Generating Designs...
                 </>
-              ) : 'Create Mailer Designs'}
+              ) : (
+                'Create Mailer Designs'
+              )}
             </button>
           </div>
         </form>
@@ -439,7 +472,8 @@ const DealSetup: React.FC = () => {
     );
   }
 
-  // STEP 2: Render
+  // --- Render Step 2 ---
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex flex-col lg:flex-row gap-12">
