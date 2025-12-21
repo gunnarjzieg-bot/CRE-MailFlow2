@@ -7,9 +7,7 @@ import CardPreview from './CardPreview';
 /* ------------------ Constants ------------------ */
 
 const PROPERTY_TYPES = ['Retail', 'Industrial', 'Multi-family', 'Office', 'Flex', 'Land'];
-
 const OWNER_TYPES = ['Individual Owner', 'LLC Owner', 'Portfolio / Multiple Properties', 'Bank Owned'];
-
 const PRICE_RANGES = ['Under $1M', '$1M - $2.5M', '$2.5M - $5M', '$5M - $10M', '$10M - $20M', '$20M+'];
 
 interface PricingPlanWithStripe extends PricingPlan {
@@ -23,7 +21,8 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.79,
     dimensions: '#10 Envelope',
     description: 'Formal introduction letter',
-    stripeLink: 'https://buy.stripe.com/placeholder-letter',
+    // ⚠️ Replace with your real Stripe link
+    stripeLink: 'https://buy.stripe.com/placeholder-letter', 
   },
   {
     id: MailerType.POSTCARD_STD,
@@ -31,8 +30,8 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.99,
     dimensions: '6x9',
     description: 'Standard size, most popular',
-    // ✅ TEST LINK
-    stripeLink: 'https://buy.stripe.com/bJe9AVcvbapleEegC4efC03',
+    // ✅ TEST LINK (Replace with live link for production)
+    stripeLink: 'https://buy.stripe.com/bJe9AVcvbapleEegC4efC03', 
   },
   {
     id: MailerType.POSTCARD_JUMBO,
@@ -40,9 +39,20 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 1.39,
     dimensions: '9x12',
     description: 'Jumbo size for maximum impact',
+    // ⚠️ Replace with your real Stripe link
     stripeLink: 'https://buy.stripe.com/placeholder-jumbo',
   },
 ];
+
+/* ------------------ Helpers ------------------ */
+
+// Helper to ensure BigInt columns get clean numbers (or null if empty)
+function toIntOrNull(value: string): number | null {
+  const cleaned = (value || '').replace(/,/g, '').trim();
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
 
 /* ------------------ Component ------------------ */
 
@@ -62,7 +72,7 @@ const DealSetup: React.FC = () => {
     companyName: '',
     website: '',
     phoneNumber: '',
-    email: '',
+    email: '', // We keep this in state for the UI, but won't save it to DB
     logo: '',
   });
 
@@ -80,20 +90,6 @@ const DealSetup: React.FC = () => {
     () => PRICING_PLANS.find((p) => p.id === selectedPlan),
     [selectedPlan]
   );
-
-  /* ------------------ Helpers ------------------ */
-
-  const parseSqFt = (value: string) => {
-    const cleaned = String(value || '').replace(/,/g, '').trim();
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? n : null;
-  };
-
-  const parseIntSafe = (value: string) => {
-    const cleaned = String(value || '').trim();
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? n : null;
-  };
 
   const calculateTotal = () => {
     const plan = selectedPlanObj;
@@ -147,25 +143,27 @@ const DealSetup: React.FC = () => {
 
     const chosenDesign = generatedDesigns.find((d) => d.id === selectedDesignId) || null;
 
+    // ✅ FIXED: Payload strictly matches your Supabase Schema
+    // Removed 'email' and 'total_price'
     const payload = {
-      company_name: criteria.companyName,
-      logo: criteria.logo, // warning: base64 can be big
-      property_type: criteria.propertyType,
-      owner_type: criteria.ownerType,
-      target_state: criteria.targetState,
+      company_name: criteria.companyName || null,
+      logo: criteria.logo || null,
+      property_type: criteria.propertyType || null,
+      owner_type: criteria.ownerType || null,
+      target_state: criteria.targetState || null,
       target_city: criteria.targetCity || null,
-      min_sq_ft: parseSqFt(criteria.minSqFt),
-      min_years_owned: parseIntSafe(criteria.minYearsOwned),
-      price_range: criteria.priceRange,
+      min_sq_ft: toIntOrNull(criteria.minSqFt),
+      min_years_owned: toIntOrNull(criteria.minYearsOwned),
+      price_range: criteria.priceRange || null,
       website: criteria.website || null,
       phone: criteria.phoneNumber || null,
-      email: criteria.email || null,
-      mailer_format: selectedPlan,
-      quantity,
+      
+      // Use the readable name (e.g., "A. Letter Mailer") instead of just ID
+      mailer_format: selectedPlanObj?.name || String(selectedPlan),
+      
+      quantity: quantity,
       selected_design_style: chosenDesign?.style || null,
-      selected_design: chosenDesign, // requires json/jsonb column
-      total_price: calculateTotal(),
-      created_at: new Date().toISOString(),
+      selected_design: chosenDesign, // JSONB column
     };
 
     const { error } = await supabase.from('campaigns').insert(payload);
@@ -218,10 +216,10 @@ const DealSetup: React.FC = () => {
         return;
       }
 
-      // Save to Supabase (best-effort — won’t crash if env vars missing)
+      // Save to Supabase (best-effort)
       await saveCampaignDraft();
 
-      // Redirect to Stripe test link (or the plan's link)
+      // Redirect to Stripe
       window.location.href = plan.stripeLink;
     } catch (err) {
       console.error(err);
@@ -287,7 +285,6 @@ const DealSetup: React.FC = () => {
                   onChange={(e) => setCriteria({ ...criteria, targetState: e.target.value.toUpperCase() })}
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Target City <span className="text-gray-400 font-normal">(Optional)</span>
@@ -359,12 +356,7 @@ const DealSetup: React.FC = () => {
                     ) : (
                       <div className="flex flex-col items-center justify-center py-4">
                         <svg className="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                          />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                         <p className="mb-1 text-sm text-gray-500 font-medium">Click to upload logo</p>
                         <p className="text-xs text-gray-400">JPG or PNG</p>
@@ -426,35 +418,20 @@ const DealSetup: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-gray-100">
-              <h3 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-wider">Select Mailer Format</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {PRICING_PLANS.map((plan) => (
-                  <div
-                    key={plan.id}
-                    onClick={() => setSelectedPlan(plan.id)}
-                    className={`cursor-pointer p-4 border rounded-lg flex flex-col justify-between transition ${
-                      selectedPlan === plan.id
-                        ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900/20'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="mb-2">
-                      <span className="text-sm font-bold text-gray-900 block">{plan.name}</span>
-                      <span className="text-xs text-gray-500 block">{plan.dimensions}</span>
-                    </div>
-                    <div className="text-slate-900 font-bold text-sm">${plan.pricePerUnit.toFixed(2)} / pc</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
               className="w-full mt-8 bg-slate-900 text-white py-4 rounded-lg font-bold text-lg hover:bg-slate-800 transition shadow-md disabled:opacity-70 flex justify-center items-center"
             >
-              {loading ? 'Generating Designs...' : 'Create Mailer Designs'}
+              {loading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Generating Designs...
+                </>
+              ) : 'Create Mailer Designs'}
             </button>
           </div>
         </form>
@@ -462,11 +439,11 @@ const DealSetup: React.FC = () => {
     );
   }
 
-  // STEP 2
+  // STEP 2: Render
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex flex-col lg:flex-row gap-12">
-        {/* Left */}
+        {/* Left: Design Selection */}
         <div className="lg:w-2/3 flex flex-col">
           <div className="mb-6 text-center lg:text-left">
             <h2 className="text-3xl font-serif font-bold text-gray-900 mb-2">Select Your Design</h2>
@@ -501,12 +478,14 @@ const DealSetup: React.FC = () => {
           </div>
         </div>
 
-        {/* Right */}
+        {/* Right: Checkout */}
         <div className="lg:w-1/3">
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 sticky top-24">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">Checkout</h3>
-              <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded-full uppercase">Secure</span>
+              <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded-full uppercase">
+                Secure
+              </span>
             </div>
 
             <div className="space-y-6">
@@ -518,7 +497,9 @@ const DealSetup: React.FC = () => {
                       key={plan.id}
                       onClick={() => setSelectedPlan(plan.id)}
                       className={`cursor-pointer p-3 border rounded-lg flex items-center justify-between transition ${
-                        selectedPlan === plan.id ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'
+                        selectedPlan === plan.id
+                          ? 'border-slate-900 bg-slate-50'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       <div>
@@ -583,7 +564,8 @@ const DealSetup: React.FC = () => {
 
               {!isSupabaseConfigured && (
                 <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  Supabase env vars aren’t set yet. That’s fine for now — saving will be skipped until you add them in Vercel.
+                  Supabase env vars aren’t set yet. That’s fine for now — saving will be skipped until you add them in
+                  Vercel.
                 </p>
               )}
             </div>
