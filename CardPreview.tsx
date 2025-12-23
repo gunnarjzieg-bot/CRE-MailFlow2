@@ -8,50 +8,40 @@ interface CardPreviewProps {
   selected: boolean;
 }
 
-const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect }) => {
+const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect, selected }) => {
   const [side, setSide] = useState<'front' | 'back'>('front');
   const [imgError, setImgError] = useState(false);
 
-  // High quality images for CRE with reliable source URLs
   const getImage = (type: string) => {
     if (imgError) {
-      // Fallback generic CRE image if specific one fails
       return 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=800';
     }
 
     const t = (type || '').toLowerCase();
 
-    // Retail - Shopping center / Storefront
     if (t.includes('retail') || t.includes('shopping'))
       return 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80&w=800';
 
-    // Office - Modern office building
     if (t.includes('office'))
       return 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&q=80&w=800';
 
-    // Industrial - Warehouse
     if (t.includes('industrial') || t.includes('warehouse'))
       return 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80&w=800';
 
-    // Multi-family - Apartment complex
     if (t.includes('multi'))
       return 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=800';
 
-    // Land - Open land
     if (t.includes('land'))
       return 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&q=80&w=800';
 
-    // Flex - Business park / Flex space
     if (t.includes('flex'))
       return 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=800';
 
-    // Default
     return 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=800';
   };
 
   const bgImage = useMemo(() => getImage(criteria.propertyType), [criteria.propertyType, imgError]);
 
-  // Default to example.com if empty to ensure QR generation doesn't break
   const targetUrl = criteria.website || 'https://example.com';
 
   const qrCodeUrl = useMemo(
@@ -64,7 +54,6 @@ const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect })
 
   const formattedPhone = criteria.phoneNumber || '(555) 000-0000';
 
-  // Helper to render logo or company name
   const renderLogo = (className: string) => {
     if (criteria.logo) {
       return <img src={criteria.logo} alt="Company Logo" className={`object-contain ${className}`} />;
@@ -76,17 +65,13 @@ const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect })
     );
   };
 
-  // Common styles to ensure "Same Color" feel across designs
   const primaryColor = 'text-blue-900';
   const accentBg = 'bg-blue-900';
 
-  // --- RENDER FRONT ---
   const renderFront = () => {
-    // STYLE: MODERN (Layout: Split Left/Right)
     if (design.style === 'modern') {
       return (
         <div className="w-full h-full bg-blue-50 relative flex overflow-hidden font-sans border border-gray-100">
-          {/* Left Image 50% */}
           <div className="w-1/2 relative h-full bg-gray-300">
             <img
               src={bgImage}
@@ -97,7 +82,6 @@ const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect })
             <div className="absolute inset-0 bg-blue-900/10"></div>
           </div>
 
-          {/* Right Content 50% */}
           <div className="w-1/2 flex flex-col justify-between relative bg-blue-50">
             <div className="p-5 flex-1 flex flex-col justify-center">
               {renderLogo('h-8 mb-4 self-start')}
@@ -117,7 +101,6 @@ const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect })
       );
     }
 
-    // STYLE: BOLD (Layout: Full Background Image)
     if (design.style === 'bold') {
       return (
         <div className="w-full h-full bg-slate-900 text-white relative flex flex-col overflow-hidden font-sans bg-gray-800">
@@ -164,7 +147,6 @@ const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect })
       );
     }
 
-    // STYLE: CLASSIC (Layout: Top Image / Bottom Text)
     return (
       <div className="w-full h-full bg-stone-100 relative flex flex-col font-serif border border-gray-200">
         <div className="h-[45%] w-full relative bg-gray-300">
@@ -206,11 +188,9 @@ const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect })
     );
   };
 
-  // --- RENDER BACK ---
   const renderBack = () => {
     return (
       <div className="w-full h-full bg-white flex relative font-sans">
-        {/* Left Content Zone (60%) */}
         <div className="w-3/5 p-4 flex flex-col h-full border-r border-gray-200 border-dashed bg-blue-50/50 relative">
           <h4 className="text-sm font-bold text-blue-900 mb-2 leading-tight">{design.back.headline}</h4>
 
@@ -259,7 +239,6 @@ const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect })
           </div>
         </div>
 
-        {/* Right Address Zone (40%) */}
         <div className="w-2/5 pl-4 p-4 flex flex-col relative h-full bg-white">
           <div className="absolute top-4 right-4 w-12 h-14 border border-gray-300 bg-white flex flex-col items-center justify-center text-center">
             <span className="text-[6px] uppercase text-gray-400 font-bold leading-tight">
@@ -295,16 +274,26 @@ const CardPreview: React.FC<CardPreviewProps> = ({ design, criteria, onSelect })
     );
   };
 
+  const containerClass = `
+    relative w-full bg-white rounded shadow-lg cursor-pointer transition-all overflow-hidden border hover:shadow-xl group
+    ${selected ? 'border-blue-600 ring-2 ring-blue-500 ring-offset-2' : 'border-gray-200'}
+  `;
+
   return (
     <div className="flex flex-col gap-3">
       <div
         onClick={onSelect}
         style={{ aspectRatio: '3/2' }}
-        className="relative w-full bg-white rounded shadow-lg cursor-pointer transition-all overflow-hidden border border-gray-200 hover:shadow-xl group"
+        className={containerClass}
+        aria-pressed={selected}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') onSelect();
+        }}
       >
         {side === 'front' ? renderFront() : renderBack()}
 
-        {/* Flip Button Overlay */}
         <button
           type="button"
           onClick={(e) => {
