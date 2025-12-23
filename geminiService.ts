@@ -1,7 +1,9 @@
-import { GoogleGenAI } from "@google/genai";
-import { BuyingCriteria, MailerDesign } from "../types";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { BuyingCriteria, MailerDesign } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+
+const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 
 export const generateMailerCopy = async (criteria: BuyingCriteria): Promise<MailerDesign[]> => {
   const location = criteria.targetCity 
@@ -44,24 +46,33 @@ export const generateMailerCopy = async (criteria: BuyingCriteria): Promise<Mail
         "secondaryCta": "Secondary CTA (e.g. Scan to visit website)"
       }
     }
+    
+    Return ONLY valid JSON, no markdown formatting.
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json'
+    if (!genAI) {
+      throw new Error("Gemini API not configured");
+    }
+
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json"
       }
     });
 
-    const text = response.text;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
     if (!text) throw new Error("No content generated");
     
     return JSON.parse(text) as MailerDesign[];
   } catch (error) {
     console.error("Error generating copy:", error);
-    // Fallback content in case of API failure
+    
+    // Fallback content
     return [
       {
         id: "fallback_1",
@@ -77,7 +88,7 @@ export const generateMailerCopy = async (criteria: BuyingCriteria): Promise<Mail
           headline: "Why Sell Off-Market?",
           benefits: ["No Broker Fees", "As-Is Purchase", "Flexible Timeline", "Cash Closing"],
           socialProof: "Trusted by over 500 property owners since 2015.",
-          testimonial: "\"Professional, fast, and effective.\"",
+          testimonial: "Professional, fast, and effective.",
           guarantee: "No obligation — simple and affordable.",
           secondaryCta: "Visit our website for more info."
         }
@@ -96,7 +107,7 @@ export const generateMailerCopy = async (criteria: BuyingCriteria): Promise<Mail
           headline: "Simplify Your Exit Today",
           benefits: ["We Take On The Risk", "No Repairs Needed", "Guaranteed Closing", "We Handle Evictions"],
           socialProof: "Solving complex real estate problems for 10+ years.",
-          testimonial: "\"They solved a 2-year probate issue in weeks.\"",
+          testimonial: "They solved a 2-year probate issue in weeks.",
           guarantee: "100% Confidential Process.",
           secondaryCta: "Scan to see our track record."
         }
@@ -115,7 +126,7 @@ export const generateMailerCopy = async (criteria: BuyingCriteria): Promise<Mail
           headline: "A Partnership Approach",
           benefits: ["Market Expertise", "Confidential Process", "Owner-to-Owner", "Local Knowledge"],
           socialProof: "Over $50M in local assets acquired.",
-          testimonial: "\"Fair price and smooth transaction.\"",
+          testimonial: "Fair price and smooth transaction.",
           guarantee: "Your satisfaction is our priority.",
           secondaryCta: "Learn more about us."
         }
