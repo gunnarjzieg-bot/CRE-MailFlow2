@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { Page } from './types';
-
+import { MailerType } from './types';
 import Navbar from './Navbar';
 import Hero from './Hero';
 import DealSetup from './DealSetup';
@@ -9,8 +9,13 @@ import Contact from './Contact';
 import Testimonials from './Testimonials';
 import WhyChooseUs from './WhyChooseUs';
 
+function assertNever(x: never): never {
+  throw new Error(`Unexpected page: ${String(x)}`);
+}
+
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [selectedPlan, setSelectedPlan] = useState<MailerType>(MailerType.POSTCARD_STD);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -27,12 +32,15 @@ const App: React.FC = () => {
           </>
         );
       case 'setup':
-        return <DealSetup />;
+        return <DealSetup initialPlan={selectedPlan} />;
       case 'pricing':
-        return <Pricing />;
+        return <Pricing onPlanSelect={setSelectedPlan} onNavigate={setCurrentPage} />;
       case 'contact':
         return <Contact />;
-      default:
+      default: {
+        if (process.env.NODE_ENV !== 'production') {
+          return assertNever(currentPage as never);
+        }
         return (
           <>
             <Hero onStart={() => setCurrentPage('setup')} />
@@ -40,14 +48,17 @@ const App: React.FC = () => {
             <Testimonials />
           </>
         );
+      }
     }
   };
 
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 flex flex-col">
       <Navbar onNavigate={setCurrentPage} currentPage={currentPage} />
-
-      <main className="flex-grow">{renderContent()}</main>
+      
+      <main className="flex-grow">
+        {renderContent()}
+      </main>
 
       <footer className="bg-slate-900 text-white py-12 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -63,7 +74,6 @@ const App: React.FC = () => {
                 Automated direct mail for commercial investors.
               </p>
             </div>
-
             <nav className="flex space-x-6 text-sm text-slate-400" aria-label="Footer navigation">
               <button
                 onClick={() => setCurrentPage('contact')}
@@ -79,7 +89,6 @@ const App: React.FC = () => {
               </button>
             </nav>
           </div>
-
           <div className="mt-8 text-center text-xs text-slate-600 border-t border-slate-800 pt-8">
             &copy; {new Date().getFullYear()} CRE Mailflow. All rights reserved.
           </div>
