@@ -4,6 +4,12 @@ import { generateMailerCopy } from './geminiService';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import CardPreview from './CardPreview';
 
+/* ------------------ Props Interface ------------------ */
+
+interface DealSetupProps {
+  initialPlan?: MailerType;
+}
+
 /* ------------------ Constants ------------------ */
 
 const PROPERTY_TYPES = ['Retail', 'Industrial', 'Multi-family', 'Office', 'Flex', 'Land'];
@@ -21,8 +27,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.79,
     dimensions: '#10 Envelope',
     description: 'Formal introduction letter',
-    // ⚠️ Placeholder: will be blocked by the safety check
-    stripeLink: 'https://buy.stripe.com/placeholder-letter',
+    stripeLink: 'https://buy.stripe.com/placeholder-letter', // Replace with real link
   },
   {
     id: MailerType.POSTCARD_STD,
@@ -30,8 +35,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.99,
     dimensions: '6x9',
     description: 'Standard size, most popular',
-    // ✅ TEST LINK
-    stripeLink: 'https://buy.stripe.com/bJe9AVcvbapleEegC4efC03',
+    stripeLink: 'https://buy.stripe.com/bJe9AVcvbapleEegC4efC03', // Verified Test Link
   },
   {
     id: MailerType.POSTCARD_JUMBO,
@@ -39,8 +43,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 1.39,
     dimensions: '9x12',
     description: 'Jumbo size for maximum impact',
-    // ⚠️ Placeholder: will be blocked by the safety check
-    stripeLink: 'https://buy.stripe.com/placeholder-jumbo',
+    stripeLink: 'https://buy.stripe.com/placeholder-jumbo', // Replace with real link
   },
 ];
 
@@ -56,7 +59,8 @@ function toIntOrNull(value: string): number | null {
 
 /* ------------------ Component ------------------ */
 
-const DealSetup: React.FC = () => {
+// 1. Updated Component Definition to accept props
+const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [launching, setLaunching] = useState(false);
@@ -79,7 +83,9 @@ const DealSetup: React.FC = () => {
   const [generatedDesigns, setGeneratedDesigns] = useState<MailerDesign[]>([]);
   const [selectedDesignId, setSelectedDesignId] = useState<string>('');
   const [quantity, setQuantity] = useState(100);
-  const [selectedPlan, setSelectedPlan] = useState<MailerType>(MailerType.POSTCARD_STD);
+
+  // 2. Updated State initialization to use the prop
+  const [selectedPlan, setSelectedPlan] = useState<MailerType>(initialPlan || MailerType.POSTCARD_STD);
 
   const activeDesign = useMemo(
     () => generatedDesigns.find((d) => d.id === selectedDesignId) || generatedDesigns[0],
