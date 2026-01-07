@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 
 type FormState = {
   firstName: string;
@@ -14,6 +14,8 @@ const Contact: React.FC = () => {
     email: "",
     message: "",
   });
+
+  const mailtoLinkRef = useRef<HTMLAnchorElement | null>(null);
 
   const canSend = useMemo(() => {
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
@@ -41,8 +43,8 @@ const Contact: React.FC = () => {
     e.preventDefault();
     if (!canSend) return;
 
-    // MVP: always works, no backend required
-    window.location.href = mailtoHref;
+    // More reliable than window.location.href in some browsers
+    mailtoLinkRef.current?.click();
   };
 
   return (
@@ -59,6 +61,8 @@ const Contact: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
                 <input
+                  name="firstName"
+                  required
                   type="text"
                   value={form.firstName}
                   onChange={(e) => update("firstName", e.target.value)}
@@ -70,6 +74,8 @@ const Contact: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
                 <input
+                  name="lastName"
+                  required
                   type="text"
                   value={form.lastName}
                   onChange={(e) => update("lastName", e.target.value)}
@@ -83,6 +89,8 @@ const Contact: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
               <input
+                name="email"
+                required
                 type="email"
                 value={form.email}
                 onChange={(e) => update("email", e.target.value)}
@@ -95,6 +103,8 @@ const Contact: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
               <textarea
+                name="message"
+                required
                 rows={4}
                 value={form.message}
                 onChange={(e) => update("message", e.target.value)}
@@ -103,6 +113,11 @@ const Contact: React.FC = () => {
               />
               <div className="text-xs text-gray-500 mt-1">Minimum 10 characters.</div>
             </div>
+
+            {/* Hidden anchor used for reliable mailto open */}
+            <a ref={mailtoLinkRef} href={mailtoHref} className="hidden" aria-hidden="true">
+              Email
+            </a>
 
             <button
               type="submit"
