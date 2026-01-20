@@ -20,6 +20,26 @@ interface PricingPlanWithStripe extends PricingPlan {
   stripeLink: string;
 }
 
+/**
+ * Stripe Payment Links:
+ * - Defaults are set to the links you provided.
+ * - You can override in Vercel by setting:
+ *   VITE_STRIPE_LINK_LETTER
+ *   VITE_STRIPE_LINK_POSTCARD_STD
+ *   VITE_STRIPE_LINK_POSTCARD_JUMBO
+ */
+const STRIPE_LINKS: Record<MailerType, string> = {
+  [MailerType.LETTER]:
+    (import.meta.env.VITE_STRIPE_LINK_LETTER as string | undefined) ||
+    'https://buy.stripe.com/4gM00ldzffJFdAa3PiefC00',
+  [MailerType.POSTCARD_STD]:
+    (import.meta.env.VITE_STRIPE_LINK_POSTCARD_STD as string | undefined) ||
+    'https://buy.stripe.com/14A3cx2UBeFB9jU85yefC01',
+  [MailerType.POSTCARD_JUMBO]:
+    (import.meta.env.VITE_STRIPE_LINK_POSTCARD_JUMBO as string | undefined) ||
+    'https://buy.stripe.com/9B66oJ0Mt8hdanY5XqefC02',
+};
+
 const PRICING_PLANS: PricingPlanWithStripe[] = [
   {
     id: MailerType.LETTER,
@@ -27,7 +47,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.79,
     dimensions: '#10 Envelope',
     description: 'Formal introduction letter',
-    stripeLink: 'https://buy.stripe.com/placeholder-letter', // Replace with real link
+    stripeLink: STRIPE_LINKS[MailerType.LETTER],
   },
   {
     id: MailerType.POSTCARD_STD,
@@ -35,7 +55,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.99,
     dimensions: '6x9',
     description: 'Standard size, most popular',
-    stripeLink: 'https://buy.stripe.com/bJe9AVcvbapleEegC4efC03', // Verified Test Link
+    stripeLink: STRIPE_LINKS[MailerType.POSTCARD_STD],
   },
   {
     id: MailerType.POSTCARD_JUMBO,
@@ -43,7 +63,7 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 1.39,
     dimensions: '9x12',
     description: 'Jumbo size for maximum impact',
-    stripeLink: 'https://buy.stripe.com/placeholder-jumbo', // Replace with real link
+    stripeLink: STRIPE_LINKS[MailerType.POSTCARD_JUMBO],
   },
 ];
 
@@ -59,7 +79,6 @@ function toIntOrNull(value: string): number | null {
 
 /* ------------------ Component ------------------ */
 
-// 1. Updated Component Definition to accept props
 const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -84,7 +103,6 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
   const [selectedDesignId, setSelectedDesignId] = useState<string>('');
   const [quantity, setQuantity] = useState(100);
 
-  // 2. Updated State initialization to use the prop
   const [selectedPlan, setSelectedPlan] = useState<MailerType>(initialPlan || MailerType.POSTCARD_STD);
 
   const activeDesign = useMemo(
@@ -92,10 +110,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
     [generatedDesigns, selectedDesignId]
   );
 
-  const selectedPlanObj = useMemo(
-    () => PRICING_PLANS.find((p) => p.id === selectedPlan),
-    [selectedPlan]
-  );
+  const selectedPlanObj = useMemo(() => PRICING_PLANS.find((p) => p.id === selectedPlan), [selectedPlan]);
 
   const calculateTotal = () => {
     const plan = selectedPlanObj;
@@ -113,7 +128,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
       case 'classic':
         return 'bg-amber-500 text-white border-amber-500 shadow-amber-200';
       default:
-        return 'bg-slate-900 text-white border-slate-900';
+        return 'bg-slate-900 text-white border-slate-900 shadow-slate-200';
     }
   };
 
@@ -152,7 +167,6 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
 
     const chosenDesign = activeDesign || null;
 
-    // ✅ Strictly matches your campaigns schema
     const payload = {
       company_name: criteria.companyName || null,
       logo: criteria.logo || null,
@@ -173,11 +187,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
 
     console.log('[campaigns] INSERT payload:', payload);
 
-    const { data, error } = await supabase
-      .from('campaigns')
-      .insert(payload)
-      .select('id, created_at')
-      .single();
+    const { data, error } = await supabase.from('campaigns').insert(payload).select('id, created_at').single();
 
     console.log('[campaigns] INSERT result:', { data, error });
 
@@ -231,9 +241,9 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
         return;
       }
 
-      // Block placeholder links
-      if (plan.stripeLink.includes('placeholder')) {
-        alert('Stripe link not set for this plan yet.');
+      // Very basic sanity check to avoid empty/bad links
+      if (!plan.stripeLink || !plan.stripeLink.includes('buy.stripe.com')) {
+        alert('Stripe link not set correctly for this plan.');
         setLaunching(false);
         return;
       }
