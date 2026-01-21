@@ -21,23 +21,13 @@ interface PricingPlanWithStripe extends PricingPlan {
 }
 
 /**
- * Stripe Payment Links:
- * - Defaults are set to the links you provided.
- * - You can override in Vercel by setting:
- *   VITE_STRIPE_LINK_LETTER
- *   VITE_STRIPE_LINK_POSTCARD_STD
- *   VITE_STRIPE_LINK_POSTCARD_JUMBO
+ * Stripe Payment Links (Hardcoded)
+ * If Stripe checkout still shows "test", these are NOT live links—replace them with LIVE-mode links.
  */
 const STRIPE_LINKS: Record<MailerType, string> = {
-  [MailerType.LETTER]:
-    (import.meta.env.VITE_STRIPE_LINK_LETTER as string | undefined) ||
-    'https://buy.stripe.com/4gM00ldzffJFdAa3PiefC00',
-  [MailerType.POSTCARD_STD]:
-    (import.meta.env.VITE_STRIPE_LINK_POSTCARD_STD as string | undefined) ||
-    'https://buy.stripe.com/14A3cx2UBeFB9jU85yefC01',
-  [MailerType.POSTCARD_JUMBO]:
-    (import.meta.env.VITE_STRIPE_LINK_POSTCARD_JUMBO as string | undefined) ||
-    'https://buy.stripe.com/9B66oJ0Mt8hdanY5XqefC02',
+  [MailerType.LETTER]: 'https://buy.stripe.com/4gM00ldzffJFdAa3PiefC00',
+  [MailerType.POSTCARD_STD]: 'https://buy.stripe.com/14A3cx2UBeFB9jU85yefC01',
+  [MailerType.POSTCARD_JUMBO]: 'https://buy.stripe.com/9B66oJ0Mt8hdanY5XqefC02',
 };
 
 const PRICING_PLANS: PricingPlanWithStripe[] = [
@@ -103,6 +93,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
   const [selectedDesignId, setSelectedDesignId] = useState<string>('');
   const [quantity, setQuantity] = useState(100);
 
+  // Use provided initial plan (if any)
   const [selectedPlan, setSelectedPlan] = useState<MailerType>(initialPlan || MailerType.POSTCARD_STD);
 
   const activeDesign = useMemo(
@@ -167,6 +158,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
 
     const chosenDesign = activeDesign || null;
 
+    // Matches campaigns schema
     const payload = {
       company_name: criteria.companyName || null,
       logo: criteria.logo || null,
@@ -241,14 +233,14 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
         return;
       }
 
-      // Very basic sanity check to avoid empty/bad links
-      if (!plan.stripeLink || !plan.stripeLink.includes('buy.stripe.com')) {
-        alert('Stripe link not set correctly for this plan.');
+      // Enforce minimum quantity at checkout (real enforcement)
+      if (!Number.isFinite(quantity) || quantity < 100) {
+        alert('Minimum order quantity is 100 pieces.');
         setLaunching(false);
         return;
       }
 
-      // Save and STOP if it fails
+      // Save and STOP if it fails (only if Supabase configured)
       const { error } = await saveCampaignDraft();
       if (error) {
         alert('Could not save campaign. Check console + Supabase RLS/policies.');
@@ -257,6 +249,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
       }
 
       // Redirect to Stripe
+      console.log('Redirecting to:', plan.stripeLink);
       window.location.href = plan.stripeLink;
     } catch (err) {
       console.error(err);
@@ -493,7 +486,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
     );
   }
 
-  // STEP 2: Render
+  // STEP 2
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex flex-col lg:flex-row gap-12">
@@ -566,15 +559,17 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
                 </div>
               </div>
 
+              {/* Quantity */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
                 <div className="relative">
                   <input
                     type="number"
-                    min="100"
-                    step="50"
+                    min={100}
+                    step={1}
                     value={quantity}
-                    onChange={(e) => setQuantity(Math.max(100, parseInt(e.target.value, 10) || 0))}
+                    onChange={(e) => setQuantity(Number(e.target.value) || 0)}
+                    onBlur={() => setQuantity((prev) => Math.max(100, Math.trunc(prev)))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 outline-none"
                   />
                   <div className="absolute right-3 top-2 text-sm text-gray-400">pcs</div>
