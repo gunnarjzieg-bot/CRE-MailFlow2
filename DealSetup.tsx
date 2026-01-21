@@ -67,6 +67,13 @@ function toIntOrNull(value: string): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+// Quantity parsing: allow empty while typing, enforce >= 100 when it matters.
+function parseQuantity(input: string): number {
+  const n = Number(String(input).trim());
+  if (!Number.isFinite(n)) return 100;
+  return Math.max(100, Math.trunc(n));
+}
+
 /* ------------------ Component ------------------ */
 
 const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
@@ -91,7 +98,9 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
 
   const [generatedDesigns, setGeneratedDesigns] = useState<MailerDesign[]>([]);
   const [selectedDesignId, setSelectedDesignId] = useState<string>('');
-  const [quantity, setQuantity] = useState(100);
+
+  // FIX: store as string so user can delete & type freely (no "0100" behavior)
+  const [quantityInput, setQuantityInput] = useState('100');
 
   // Use provided initial plan (if any)
   const [selectedPlan, setSelectedPlan] = useState<MailerType>(initialPlan || MailerType.POSTCARD_STD);
@@ -105,7 +114,8 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
 
   const calculateTotal = () => {
     const plan = selectedPlanObj;
-    return (quantity * (plan?.pricePerUnit || 0)).toFixed(2);
+    const qty = parseQuantity(quantityInput);
+    return (qty * (plan?.pricePerUnit || 0)).toFixed(2);
   };
 
   const getDesignButtonColor = (style: MailerDesign['style'], isSelected: boolean) => {
@@ -172,7 +182,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
       website: criteria.website || null,
       phone: criteria.phoneNumber || null,
       mailer_format: selectedPlanObj?.name || String(selectedPlan),
-      quantity: quantity,
+      quantity: parseQuantity(quantityInput),
       selected_design_style: chosenDesign?.style || null,
       selected_design: chosenDesign, // jsonb
     };
@@ -233,8 +243,10 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
         return;
       }
 
+      const qty = parseQuantity(quantityInput);
+
       // Enforce minimum quantity at checkout (real enforcement)
-      if (!Number.isFinite(quantity) || quantity < 100) {
+      if (!Number.isFinite(qty) || qty < 100) {
         alert('Minimum order quantity is 100 pieces.');
         setLaunching(false);
         return;
@@ -559,17 +571,23 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
                 </div>
               </div>
 
-              {/* Quantity */}
+              {/* Quantity (FIXED) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
                 <div className="relative">
                   <input
-                    type="number"
-                    min={100}
-                    step={1}
-                    value={quantity}
-                    onChange={(e) => setQuantity(Number(e.target.value) || 0)}
-                    onBlur={() => setQuantity((prev) => Math.max(100, Math.trunc(prev)))}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={quantityInput}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/[^\d]/g, '');
+                      setQuantityInput(digitsOnly);
+                    }}
+                    onBlur={() => {
+                      setQuantityInput(String(parseQuantity(quantityInput)));
+                    }}
+                    placeholder="100"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 outline-none"
                   />
                   <div className="absolute right-3 top-2 text-sm text-gray-400">pcs</div>
