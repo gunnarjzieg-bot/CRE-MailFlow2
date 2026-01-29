@@ -16,28 +16,13 @@ const PROPERTY_TYPES = ['Retail', 'Industrial', 'Multi-family', 'Office', 'Flex'
 const OWNER_TYPES = ['Individual Owner', 'LLC Owner', 'Portfolio / Multiple Properties', 'Bank Owned'];
 const PRICE_RANGES = ['Under $1M', '$1M - $2.5M', '$2.5M - $5M', '$5M - $10M', '$10M - $20M', '$20M+'];
 
-interface PricingPlanWithStripe extends PricingPlan {
-  stripeLink: string;
-}
-
-/**
- * Stripe Payment Links (Hardcoded)
- * If Stripe checkout still shows "test", these are NOT live links—replace them with LIVE-mode links.
- */
-const STRIPE_LINKS: Record<MailerType, string> = {
-  [MailerType.LETTER]: 'https://buy.stripe.com/4gM00ldzffJFdAa3PiefC00',
-  [MailerType.POSTCARD_STD]: 'https://buy.stripe.com/14A3cx2UBeFB9jU85yefC01',
-  [MailerType.POSTCARD_JUMBO]: 'https://buy.stripe.com/9B66oJ0Mt8hdanY5XqefC02',
-};
-
-const PRICING_PLANS: PricingPlanWithStripe[] = [
+const PRICING_PLANS: PricingPlan[] = [
   {
     id: MailerType.LETTER,
     name: 'A. Letter Mailer',
     pricePerUnit: 0.79,
     dimensions: '#10 Envelope',
     description: 'Formal introduction letter',
-    stripeLink: STRIPE_LINKS[MailerType.LETTER],
   },
   {
     id: MailerType.POSTCARD_STD,
@@ -45,7 +30,6 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 0.99,
     dimensions: '6x9',
     description: 'Standard size, most popular',
-    stripeLink: STRIPE_LINKS[MailerType.POSTCARD_STD],
   },
   {
     id: MailerType.POSTCARD_JUMBO,
@@ -53,25 +37,23 @@ const PRICING_PLANS: PricingPlanWithStripe[] = [
     pricePerUnit: 1.39,
     dimensions: '9x12',
     description: 'Jumbo size for maximum impact',
-    stripeLink: STRIPE_LINKS[MailerType.POSTCARD_JUMBO],
   },
 ];
 
+// Stripe Payment Links (quantity chosen on Stripe page)
+const STRIPE_LINKS: Record<MailerType, string> = {
+  [MailerType.LETTER]: 'https://buy.stripe.com/4gM00ldzffJFdAa3PiefC00',
+  [MailerType.POSTCARD_STD]: 'https://buy.stripe.com/14A3cx2UBeFB9jU85yefC01',
+  [MailerType.POSTCARD_JUMBO]: 'https://buy.stripe.com/9B66oJ0Mt8hdanY5XqefC02',
+};
+
 /* ------------------ Helpers ------------------ */
 
-// Helper to ensure BigInt columns get clean numbers (or null if empty)
 function toIntOrNull(value: string): number | null {
   const cleaned = (value || '').replace(/,/g, '').trim();
   if (!cleaned) return null;
   const n = Number(cleaned);
   return Number.isFinite(n) ? Math.trunc(n) : null;
-}
-
-// Quantity parsing: allow empty while typing, enforce >= 100 when it matters.
-function parseQuantity(input: string): number {
-  const n = Number(String(input).trim());
-  if (!Number.isFinite(n)) return 100;
-  return Math.max(100, Math.trunc(n));
 }
 
 /* ------------------ Component ------------------ */
@@ -99,10 +81,6 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
   const [generatedDesigns, setGeneratedDesigns] = useState<MailerDesign[]>([]);
   const [selectedDesignId, setSelectedDesignId] = useState<string>('');
 
-  // FIX: store as string so user can delete & type freely (no "0100" behavior)
-  const [quantityInput, setQuantityInput] = useState('100');
-
-  // Use provided initial plan (if any)
   const [selectedPlan, setSelectedPlan] = useState<MailerType>(initialPlan || MailerType.POSTCARD_STD);
 
   const activeDesign = useMemo(
@@ -111,12 +89,6 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
   );
 
   const selectedPlanObj = useMemo(() => PRICING_PLANS.find((p) => p.id === selectedPlan), [selectedPlan]);
-
-  const calculateTotal = () => {
-    const plan = selectedPlanObj;
-    const qty = parseQuantity(quantityInput);
-    return (qty * (plan?.pricePerUnit || 0)).toFixed(2);
-  };
 
   const getDesignButtonColor = (style: MailerDesign['style'], isSelected: boolean) => {
     if (!isSelected) return 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50';
@@ -168,7 +140,6 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
 
     const chosenDesign = activeDesign || null;
 
-    // Matches campaigns schema
     const payload = {
       company_name: criteria.companyName || null,
       logo: criteria.logo || null,
@@ -182,20 +153,17 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
       website: criteria.website || null,
       phone: criteria.phoneNumber || null,
       mailer_format: selectedPlanObj?.name || String(selectedPlan),
-      quantity: parseQuantity(quantityInput),
+
+      // Quantity is selected on Stripe checkout page
+      quantity: null,
+
       selected_design_style: chosenDesign?.style || null,
       selected_design: chosenDesign, // jsonb
     };
 
-    console.log('[campaigns] INSERT payload:', payload);
-
     const { data, error } = await supabase.from('campaigns').insert(payload).select('id, created_at').single();
 
-    console.log('[campaigns] INSERT result:', { data, error });
-
-    if (error) {
-      console.error('[campaigns] Supabase insert failed:', error);
-    }
+    if (error) console.error('[campaigns] Supabase insert failed:', error);
 
     return { data, error };
   };
@@ -223,7 +191,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
     }
   };
 
-  /* ------------------ Step 2: Launch -> Save -> Stripe ------------------ */
+  /* ------------------ Step 2: Launch ------------------ */
 
   const handleLaunch = async () => {
     setLaunching(true);
@@ -243,26 +211,11 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
         return;
       }
 
-      const qty = parseQuantity(quantityInput);
-
-      // Enforce minimum quantity at checkout (real enforcement)
-      if (!Number.isFinite(qty) || qty < 100) {
-        alert('Minimum order quantity is 100 pieces.');
-        setLaunching(false);
-        return;
-      }
-
-      // Save and STOP if it fails (only if Supabase configured)
+      // Save campaign (optional). Even if it fails, continue to checkout.
       const { error } = await saveCampaignDraft();
-      if (error) {
-        alert('Could not save campaign. Check console + Supabase RLS/policies.');
-        setLaunching(false);
-        return;
-      }
+      if (error) console.warn('Campaign save failed, continuing to checkout');
 
-      // Redirect to Stripe
-      console.log('Redirecting to:', plan.stripeLink);
-      window.location.href = plan.stripeLink;
+      window.location.href = STRIPE_LINKS[plan.id];
     } catch (err) {
       console.error(err);
       alert('Unable to launch campaign.');
@@ -471,26 +424,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
               disabled={loading}
               className="w-full mt-8 bg-slate-900 text-white py-4 rounded-lg font-bold text-lg hover:bg-slate-800 transition shadow-md disabled:opacity-70 flex justify-center items-center"
             >
-              {loading ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Generating Designs...
-                </>
-              ) : (
-                'Create Mailer Designs'
-              )}
+              {loading ? 'Generating Designs...' : 'Create Mailer Designs'}
             </button>
           </div>
         </form>
@@ -571,42 +505,22 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
                 </div>
               </div>
 
-              {/* Quantity (FIXED) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={quantityInput}
-                    onChange={(e) => {
-                      const digitsOnly = e.target.value.replace(/[^\d]/g, '');
-                      setQuantityInput(digitsOnly);
-                    }}
-                    onBlur={() => {
-                      setQuantityInput(String(parseQuantity(quantityInput)));
-                    }}
-                    placeholder="100"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 outline-none"
-                  />
-                  <div className="absolute right-3 top-2 text-sm text-gray-400">pcs</div>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Minimum 100 pieces.</p>
+              {/* Quantity info (no input) */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-blue-900">Quantity selected on checkout</p>
+                <p className="text-sm text-blue-800 mt-1">
+                  You’ll choose your final mail quantity (100–9,999 pieces) on the secure Stripe checkout page.
+                </p>
               </div>
 
               <div className="pt-6 border-t border-gray-100">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">${calculateTotal()}</span>
+                  <span className="text-gray-600">Price per piece</span>
+                  <span className="font-medium">${(selectedPlanObj?.pricePerUnit ?? 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center mb-6">
                   <span className="text-gray-600">Postage</span>
                   <span className="font-medium text-green-600">Included</span>
-                </div>
-                <div className="flex justify-between items-center text-2xl font-bold text-gray-900">
-                  <span>Total</span>
-                  <span>${calculateTotal()}</span>
                 </div>
               </div>
 
@@ -615,7 +529,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
                 onClick={handleLaunch}
                 disabled={launching}
               >
-                {launching ? 'Processing...' : 'Launch Campaign'}
+                {launching ? 'Processing...' : 'Continue to Checkout (Select Quantity)'}
               </button>
 
               <p className="text-xs text-center text-gray-400 mt-3 flex items-center justify-center gap-2">
