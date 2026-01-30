@@ -133,6 +133,10 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
   /* ------------------ Supabase Save ------------------ */
 
   const saveCampaignDraft = async () => {
+    console.log('🔵 saveCampaignDraft called!');
+    console.log('🔵 isSupabaseConfigured:', isSupabaseConfigured);
+    console.log('🔵 supabase exists:', !!supabase);
+    
     if (!isSupabaseConfigured || !supabase) {
       console.warn('[campaigns] Supabase not configured — skipping save');
       return { data: null, error: null };
@@ -153,17 +157,20 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
       website: criteria.website || null,
       phone: criteria.phoneNumber || null,
       mailer_format: selectedPlanObj?.name || String(selectedPlan),
-
-      // Quantity is selected on Stripe checkout page
       quantity: null,
-
       selected_design_style: chosenDesign?.style || null,
-      selected_design: chosenDesign, // jsonb
+      selected_design: chosenDesign,
     };
+
+    console.log('🔵 Attempting Supabase insert with payload:', payload);
 
     const { data, error } = await supabase.from('campaigns').insert(payload).select('id, created_at').single();
 
-    if (error) console.error('[campaigns] Supabase insert failed:', error);
+    if (error) {
+      console.error('🔴 [campaigns] Supabase insert failed:', error);
+    } else {
+      console.log('✅ [campaigns] Supabase insert succeeded:', data);
+    }
 
     return { data, error };
   };
@@ -211,13 +218,18 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
         return;
       }
 
-      // Save campaign (optional). Even if it fails, continue to checkout.
+      console.log('🔵 About to call saveCampaignDraft...');
       const { error } = await saveCampaignDraft();
-      if (error) console.warn('Campaign save failed, continuing to checkout');
+      
+      if (error) {
+        console.warn('⚠️ Campaign save failed, continuing to checkout');
+      } else {
+        console.log('✅ Campaign saved successfully, redirecting to Stripe...');
+      }
 
       window.location.href = STRIPE_LINKS[plan.id];
     } catch (err) {
-      console.error(err);
+      console.error('🔴 handleLaunch error:', err);
       alert('Unable to launch campaign.');
       setLaunching(false);
     }
@@ -509,7 +521,7 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm font-semibold text-blue-900">Quantity selected on checkout</p>
                 <p className="text-sm text-blue-800 mt-1">
-                  You’ll choose your final mail quantity (100–9,999 pieces) on the secure Stripe checkout page.
+                  You'll choose your final mail quantity (100–9,999 pieces) on the secure Stripe checkout page.
                 </p>
               </div>
 
@@ -542,13 +554,6 @@ const DealSetup: React.FC<DealSetupProps> = ({ initialPlan }) => {
                 </svg>
                 Encrypted SSL Payment
               </p>
-
-              {!isSupabaseConfigured && (
-                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                  Supabase env vars aren’t set yet. That’s fine for now — saving will be skipped until you add them in
-                  Vercel.
-                </p>
-              )}
             </div>
           </div>
         </div>
